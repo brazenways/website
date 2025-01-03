@@ -73,6 +73,7 @@ img {
     width: 100%;
     height: auto;
     cursor: pointer;
+    justify-content: center;
 }
 
 .hover-text {
