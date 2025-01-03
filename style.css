@@ -65,8 +65,9 @@ img {
 .image-container {
     position: relative;
     display: inline-block;
-    width: 400px;
+    width: 500px;
     justify-content: center;
+    max-width: 95%
 }
 
 .image-container img {
