@@ -39,7 +39,7 @@ samp {
 }
 
 img {
-    animation: colorize 2s cubic-bezier(0, 0, .78, .36) 1;
+    animation: colorize 2.5s cubic-bezier(0, 0, .78, .36) 1;
     background: transparent;
     border: 4px solid rgba(0, 0, 0, 0.12);
     border-radius: 4px;
@@ -65,7 +65,8 @@ img {
 .image-container {
     position: relative;
     display: inline-block;
-    width: 500px;
+    /*width: 400px;*/
+    width: 95%;
     justify-content: center;
     max-width: 95%
 }
