@@ -66,13 +66,13 @@ img {
     position: relative;
     display: inline-block;
     /*width: 400px;*/
-    width: 50%;
+    width: 40%;
     justify-content: center;
     max-width: 75%
 }
 
 .image-container img {
-    width: 100%;
+    width: 90%;
     height: auto;
     cursor: pointer;
     justify-content: center;
