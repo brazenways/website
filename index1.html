@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TLT Max Pain Graph</title>
+    <!-- Chart.js for plotting -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Axios for API requests -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Moment.js for date handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px auto;
+        }
+        .info-panel {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            color: #6c757d;
+        }
+        .error {
+            text-align: center;
+            padding: 20px;
+            font-size: 16px;
+            color: #dc3545;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .data-table th {
+            background-color: #f1f3f5;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TLT Max Pain Graph</h1>
+        
+        <div id="loading" class="loading">Loading data, please wait...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="info-panel" class="info-panel" style="display: none;">
+            <h3>Options Expiration Info</h3>
+            <p><strong>Symbol:</strong> TLT</p>
+            <p><strong>Current Price:</strong> <span id="current-price"></span></p>
+            <p><strong>Nearest Expiration:</strong> <span id="expiration-date"></span></p>
+            <p><strong>Max Pain Price:</strong> <span id="max-pain-price"></span></p>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="maxPainChart"></canvas>
+        </div>
+        
+        <div id="options-table-container" style="display: none;">
+            <h3>Options Data Summary</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Strike Price</th>
+                        <th>Total Calls Delta</th>
+                        <th>Total Puts Delta</th>
+                        <th>Net Pressure</th>
+                    </tr>
+                </thead>
+                <tbody id="options-table-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SYMBOL = 'TLT';
+        
+        // Global variables
+        let maxPainChart = null;
+        let currentPrice = 0;
+        let expirationDate = '';
+        let maxPainResult = null;
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchStockData();
+        });
+        
+        // Fetch stock data and options information
+        async function fetchStockData() {
+            try {
+                // Get current price of TLT
+                const stockResponse = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${SYMBOL}`, {
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                
+                currentPrice = stockResponse.data.chart.result[0].meta.regularMarketPrice;
+                
+                // Get options expiration dates
+                const optionsResponse = await axios.get(`https://query2.finance.yahoo.com/v7/finance/options/${SYMBOL}`, {
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                
+                // Find the nearest expiration date
+                const expiryDates = optionsResponse.data.optionChain.result[0].expirationDates;
+                expirationDate = moment.unix(expiryDates[0]).format('MMM DD, YYYY');
+                
+                // Get options data for the nearest expiration
+                const chainResponse = await axios.get(`https://query2.finance.yahoo.com/v7/finance/options/${SYMBOL}?expirationDate=${expiryDates[0]}`, {
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                
+                // Process the options data
+                const optionsData = chainResponse.data.optionChain.result[0];
+                calculateMaxPain(optionsData);
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').textContent = `Error fetching data: ${error.message}`;
+            }
+        }
+        
+        // Calculate the max pain for options
+        function calculateMaxPain(optionsData) {
+            // Extract strikes from the options data
+            const strikes = optionsData.strikes;
+            
+            // Initialize arrays to store our calculations
+            const strikePrices = [];
+            const totalPain = [];
+            
+            // Process each strike price
+            strikes.forEach(strike => {
+                const calls = optionsData.options[0].calls.find(option => option.strike === strike);
+                const puts = optionsData.options[0].puts.find(option => option.strike === strike);
+                
+                // Calculate open interest if not available
+                const callsOI = calls && calls.openInterest ? calls.openInterest : 0;
+                const putsOI = puts && puts.openInterest ? puts.openInterest : 0;
+                
+                // Calculate total pain at this strike
+                const pain = (callsOI || 0) + (putsOI || 0);
+                
+                // Store the results
+                strikePrices.push(strike);
+                totalPain.push(pain);
+                
+                // Store for detailed view
+                if (!maxPainResult) {
+                    maxPainResult = [];
+                }
+                
+                // Calculate total calls and puts delta
+                const totalCallsDelta = calculateTotalDelta(optionsData.options[0].calls);
+                const totalPutsDelta = -calculateTotalDelta(optionsData.options[0].puts); // Negative because puts work opposite
+                const netPressure = totalCallsDelta + totalPutsDelta;
+                
+                maxPainResult.push({
+                    strike: strike,
+                    callsDelta: totalCallsDelta,
+                    putsDelta: totalPutsDelta,
+                    netPressure: netPressure
+                });
+            });
+            
+            // Find the max pain price (the strike with the lowest total pain)
+            const maxPainIndex = findMaxPainPrice(strikePrices, totalPain);
+            const maxPainPrice = strikePrices[maxPainIndex];
+            
+            // Update the UI with our results
+            displayResults(strikePrices, totalPain, maxPainPrice);
+        }
+        
+        // Calculate total delta for all options of a given type
+        function calculateTotalDelta(options) {
+            let total = 0;
+            options.forEach(option => {
+                if (option.delta !== null && option.delta !== undefined) {
+                    total += parseFloat(option.delta);
+                }
+            });
+            return total;
+        }
+        
+        // Find the strike price with maximum pain (where most money would be lost)
+        function findMaxPainPrice(strikePrices, totalPain) {
+            let maxIndex = 0;
+            let maxValue = totalPain[0];
+            
+            for (let i = 1; i < strikePrices.length; i++) {
+                if (totalPain[i] > maxValue) {
+                    maxValue = totalPain[i];
+                    maxIndex = i;
+                }
+            }
+            
+            return maxIndex;
+        }
+        
+        // Display the results in the UI
+        function displayResults(strikePrices, totalPain, maxPainPrice) {
+            // Update info panel
+            document.getElementById('current-price').textContent = `$${currentPrice.toFixed(2)}`;
+            document.getElementById('expiration-date').textContent = expirationDate;
+            document.getElementById('max-pain-price').textContent = `$${parseFloat(maxPainPrice).toFixed(2)}`;
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('info-panel').style.display = 'block';
+            
+            // Create the chart
+            createMaxPainChart(strikePrices, totalPain);
+            
+            // Create the options table
+            createOptionsTable();
+        }
+        
+        // Create the max pain chart
+        function createMaxPainChart(strikePrices, totalPain) {
+            const ctx = document.getElementById('maxPainChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (maxPainChart) {
+                maxPainChart.destroy();
+            }
+            
+            // Create a new chart
+            maxPainChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: strikePrices.map(price => `$${price.toFixed(2)}`),
+                    datasets: [{
+                        label: 'Total Pain (Open Interest)',
+                        data: totalPain,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Strike Price'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Total Open Interest'
+                            },
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    return `Strike Price: $${parseFloat(strikePrices[tooltipItems[0].dataIndex]).toFixed(2)}`;
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                line1: {
+                                    type: 'line',
+                                    xMin: parseFloat(maxPainPrice),
+                                    xMax: parseFloat(maxPainPrice),
+                                    borderColor: 'rgba(255, 99, 132, 0.8)',
+                                    borderWidth: 2,
+                                    label: {
+                                        content: `Max Pain: $${parseFloat(maxPainPrice).toFixed(2)}`,
+                                        enabled: true,
+                                        position: 'top'
+                                    }
+                                },
+                                line2: {
+                                    type: 'line',
+                                    yMin: 0,
+                                    yMax: Math.max(...totalPain),
+                                    borderColor: 'rgba(128, 0, 128, 0.8)',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        content: 'Current Price',
+                                        enabled: true,
+                                        position: 'start'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Add max pain line annotation
+            const meta = maxPainChart.data.datasets[0];
+            const index = strikePrices.findIndex(price => price === parseFloat(maxPainPrice));
+            
+            // Add a vertical line for max pain
+            const plugin = {
+                id: 'maxPainAnnotation',
+                afterDraw(chart) {
+                    const ctx = chart.ctx;
+                    const xAxis = chart.scales.x;
+                    const yAxis = chart.scales.y;
+                    
+                    // Draw vertical line for max pain
+                    ctx.save();
+                    const x = xAxis.getPixelForValue(maxPainPrice);
+                    ctx.beginPath();
+                    ctx.moveTo(x, yAxis.top);
+                    ctx.lineTo(x, yAxis.bottom);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'rgba(255, 99, 132, 0.8)';
+                    ctx.stroke();
+                    
+                    // Draw label
+                    ctx.fillStyle = 'rgba(255, 99, 132, 1)';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`Max Pain: $${parseFloat(maxPainPrice).toFixed(2)}`, x, yAxis.top - 10);
+                    
+                    // Draw horizontal line for current price
+                    const currentPriceXStart = xAxis.getPixelForValue(strikePrices[0]);
+                    const currentPriceXEnd = xAxis.getPixelForValue(Math.max(...strikePrices));
+                    const y = yAxis.getPixelForValue(yAxis.options.beginAtZero ? 0 : Math.max(...totalPain) * 0.1);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(currentPriceXStart, y);
+                    ctx.lineTo(currentPriceXEnd, y);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'rgba(128, 0, 128, 0.8)';
+                    ctx.stroke();
+                    
+                    // Draw label for current price
+                    ctx.fillStyle = 'rgba(128, 0, 128, 1)';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`Current Price: $${currentPrice.toFixed(2)}`, currentPriceXStart + 5, y - 10);
+                    
+                    ctx.restore();
+                }
+            };
+            
+            maxPainChart.config.plugins = [plugin];
+            maxPainChart.update();
+        }
+        
+        // Create the options table
+        function createOptionsTable() {
+            const tbody = document.getElementById('options-table-body');
+            
+            // Clear existing rows
+            tbody.innerHTML = '';
+            
+            // Add new rows for each strike price
+            maxPainResult.forEach(item => {
+                const row = document.createElement('tr');
+                
+                // Add color based on net pressure
+                if (item.netPressure > 0.1) {
+                    row.style.color = '#e74c3c'; // Red for bullish pressure
+                } else if (item.netPressure < -0.1) {
+                    row.style.color = '#3498db'; // Blue for bearish pressure
+                }
+                
+                const strikeCell = document.createElement('td');
+                strikeCell.textContent = `$${item.strike.toFixed(2)}`;
+                
+                const callsDeltaCell = document.createElement('td');
+                callsDeltaCell.textContent = item.callsDelta.toFixed(4);
+                if (item.callsDelta > 0.01) callsDeltaCell.style.color = '#e74c3c';
+                
+                const putsDeltaCell = document.createElement('td');
+                putsDeltaCell.textContent = item.putsDelta.toFixed(4);
+                if (item.putsDelta > 0.01) putsDeltaCell.style.color = '#3498db';
+                
+                const netPressureCell = document.createElement('td');
+                netPressureCell.textContent = item.netPressure.toFixed(4);
+                
+                row.appendChild(strikeCell);
+                row.appendChild(callsDeltaCell);
+                row.appendChild(putsDeltaCell);
+                row.appendChild(netPressureCell);
+                
+                tbody.appendChild(row);
+            });
+            
+            // Show the table
+            document.getElementById('options-table-container').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
