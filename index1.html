@@ -1,1 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SlabIQ – Sports Card Watcher Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #1f2937;
+      background: #020617c7;
+      backdrop-filter: blur(14px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #38bdf8;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 24px auto 48px;
+      padding: 0 16px;
+    }
+
+    .card {
+      background: #020617;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.9);
+      border: 1px solid #1f2937;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 160px;
+    }
+
+    label {
+      font-size: 13px;
+      margin-bottom: 4px;
+      color: #9ca3af;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
+    }
+
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 10px 18px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      color: #020617;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      filter: brightness(1.05);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #020617;
+      border: 1px solid #1f2937;
+      color: #9ca3af;
+    }
+
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+    }
+
+    .results-header {
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    .results-header strong {
+      color: #e5e7eb;
+    }
+
+    .table-wrapper {
+      margin-top: 16px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1f2937;
+      background: #020617;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 10px 10px;
+      text-align: left;
+      border-bottom: 1px solid #0f172a;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #020617;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #9ca3af;
+    }
+
+    tr:nth-child(even) td {
+      background: #020617;
+    }
+
+    tr:hover td {
+      background: #030712;
+    }
+
+    .thumb {
+      width: 70px;
+      border-radius: 10px;
+      border: 1px solid #111827;
+    }
+
+    .title-cell {
+      max-width: 360px;
+    }
+
+    .title-main {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .title-sub {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid #4b5563;
+      color: #d1d5db;
+      margin-left: 4px;
+    }
+
+    .price {
+      font-weight: 600;
+    }
+
+    .link-btn {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #4b5563;
+      color: #e5e7eb;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .link-btn:hover {
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+
+    .status-line {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .status-error {
+      color: #fca5a5;
+    }
+
+    .status-muted {
+      color: #6b7280;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: #020617;
+      border: 1px solid #1f2937;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    @media (max-width: 768px) {
+      .form-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      th:nth-child(1),
+      td:nth-child(1),
+      th:nth-child(5),
+      td:nth-child(5) {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">SlabIQ</div>
+    <div class="subtitle">
+      Sports card listing scanner · Powered by eBay Browse API
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="form-row">
+        <div class="field">
+          <label for="query">Search term</label>
+          <input
+            id="query"
+            type="text"
+            placeholder="e.g. 'michael jordan psa 10', 'conor bedard young guns'"
+          />
+        </div>
+
+        <div class="field" style="max-width: 130px;">
+          <label for="minWatchers">Min watchers</label>
+          <input id="minWatchers" type="number" min="0" value="5" />
+        </div>
+
+        <div class="field" style="flex: 0 0 auto;">
+          <button id="searchBtn">
+            🔍 Scan listings
+          </button>
+        </div>
+
+        <div class="field" style="flex: 0 0 auto;">
+          <div class="pill">
+            <span class="pill-dot"></span>
+            <span>Backend online</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-header">
+        <div id="resultsSummary">
+          Enter a search term to see live listings.
+        </div>
+        <div>
+          <span class="chip">Source: eBay Production API</span>
+        </div>
+      </div>
+
+      <div id="statusLine" class="status-line"></div>
+
+      <div id="resultsContainer" class="table-wrapper" style="display:none;">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>Card</th>
+              <th>Listing</th>
+              <th>Price</th>
+              <th>Watchers</th>
+              <th>Link</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = "https://slabiq-backend.onrender.com";
+
+    const elements = {
+      query: document.getElementById("query"),
+      minWatchers: document.getElementById("minWatchers"),
+      searchBtn: document.getElementById("searchBtn"),
+      resultsSummary: document.getElementById("resultsSummary"),
+      statusLine: document.getElementById("statusLine"),
+      resultsContainer: document.getElementById("resultsContainer"),
+      resultsBody: document.getElementById("resultsBody"),
+    };
+
+    function setLoading(isLoading) {
+      elements.searchBtn.disabled = isLoading;
+      elements.searchBtn.textContent = isLoading ? "Scanning..." : "🔍 Scan listings";
+      elements.statusLine.textContent = isLoading ? "Contacting eBay..." : "";
+      elements.statusLine.className = "status-line status-muted";
+    }
+
+    function normalizeItemsFromTestSearch(data) {
+      const summaries = data.itemSummaries || [];
+      return summaries.map((item) => ({
+        id: item.itemId,
+        title: item.title,
+        price: item.price?.value ?? null,
+        currency: item.price?.currency ?? "",
+        url: item.itemWebUrl,
+        image: item.image?.imageUrl ?? null,
+        seller: item.seller?.username ?? "",
+        watchCount: item.watchCount ?? null, // will remain null until watchCount is approved
+        endTime: item.itemEndDate ?? null,
+      }));
+    }
+
+    async function performSearch() {
+      const q = elements.query.value.trim() || "psa 10";
+      const minWatchers = parseInt(elements.minWatchers.value || "5", 10);
+
+      elements.resultsSummary.textContent = "";
+      elements.resultsContainer.style.display = "none";
+      elements.resultsBody.innerHTML = "";
+      elements.statusLine.textContent = "";
+      elements.statusLine.className = "status-line";
+
+      setLoading(true);
+
+      try {
+        const url = `${API_BASE}/api/test-search?q=${encodeURIComponent(q)}`;
+        const res = await fetch(url);
+
+        if (!res.ok) {
+          const errPayload = await res.json().catch(() => ({}));
+          throw new Error(
+            errPayload.error || `API error (${res.status} ${res.statusText})`
+          );
+        }
+
+        const data = await res.json();
+        let items = normalizeItemsFromTestSearch(data);
+
+        // If watchCount is present, apply filter
+        const anyWatchCount = items.some((i) => i.watchCount != null);
+        if (anyWatchCount && !Number.isNaN(minWatchers) && minWatchers > 0) {
+          items = items.filter(
+            (i) => i.watchCount != null && i.watchCount >= minWatchers
+          );
+        }
+
+        // Sort by watchers desc if available, else leave as-is
+        if (anyWatchCount) {
+          items.sort((a, b) => (b.watchCount ?? 0) - (a.watchCount ?? 0));
+        }
+
+        if (items.length === 0) {
+          elements.resultsSummary.textContent =
+            "No items found for that query (or none met the watcher filter yet).";
+          elements.resultsContainer.style.display = "none";
+          elements.statusLine.textContent =
+            "Hint: Try a broader search like 'psa 10' or reduce the min watchers.";
+          elements.statusLine.className = "status-line status-muted";
+          return;
+        }
+
+        elements.resultsSummary.innerHTML = `
+          Found <strong>${items.length}</strong> items for 
+          <strong>"${q}"</strong>${
+            anyWatchCount
+              ? ` · filtered by <strong>${minWatchers}+</strong> watchers`
+              : ` · watcher data pending eBay approval`
+          }
+        `;
+
+        for (const item of items) {
+          const tr = document.createElement("tr");
+
+          // Image
+          const imgTd = document.createElement("td");
+          if (item.image) {
+            const img = document.createElement("img");
+            img.src = item.image;
+            img.className = "thumb";
+            imgTd.appendChild(img);
+          }
+          tr.appendChild(imgTd);
+
+          // Title
+          const titleTd = document.createElement("td");
+          titleTd.className = "title-cell";
+          const main = document.createElement("div");
+          main.className = "title-main";
+          main.textContent = item.title || "(no title)";
+
+          const sub = document.createElement("div");
+          sub.className = "title-sub";
+          sub.textContent = item.seller ? `Seller: ${item.seller}` : "";
+
+          titleTd.appendChild(main);
+          titleTd.appendChild(sub);
+          tr.appendChild(titleTd);
+
+          // Price
+          const priceTd = document.createElement("td");
+          priceTd.className = "price";
+          if (item.price != null) {
+            priceTd.textContent = `${item.price} ${item.currency}`;
+          } else {
+            priceTd.textContent = "-";
+          }
+          tr.appendChild(priceTd);
+
+          // Watchers
+          const watchersTd = document.createElement("td");
+          if (item.watchCount != null) {
+            watchersTd.textContent = item.watchCount;
+          } else {
+            watchersTd.textContent = "pending";
+            watchersTd.style.color = "#6b7280";
+          }
+          tr.appendChild(watchersTd);
+
+          // Link
+          const linkTd = document.createElement("td");
+          if (item.url) {
+            const a = document.createElement("a");
+            a.href = item.url;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.textContent = "View";
+            a.className = "link-btn";
+            linkTd.appendChild(a);
+          }
+          tr.appendChild(linkTd);
+
+          elements.resultsBody.appendChild(tr);
+        }
+
+        elements.resultsContainer.style.display = "block";
+        elements.statusLine.textContent = anyWatchCount
+          ? "Watcher counts will populate once eBay approves access to the watchCount field."
+          : "Currently showing listings without watcher data. Once watchCount access is approved, filtering and ranking will activate.";
+        elements.statusLine.className = "status-line status-muted";
+      } catch (err) {
+        console.error(err);
+        elements.resultsSummary.textContent = "Error fetching listings.";
+        elements.statusLine.textContent = err.message;
+        elements.statusLine.className = "status-line status-error";
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    elements.searchBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      performSearch();
+    });
+
+    // Optional: run an initial search
+    performSearch();
+  </script>
+</body>
+</html>
