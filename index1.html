@@ -395,8 +395,9 @@
         url: item.itemWebUrl,
         image: item.image?.imageUrl ?? null,
         seller: item.seller?.username ?? "",
-        watchCount: item.watchCount ?? null, // will remain null until watchCount is approved
+        watchCount: item.watchCount ?? null,
         endTime: item.itemEndDate ?? null,
+        buyingOptions: item.buyingOptions || []   // <-- NEW
       }));
     }
 
@@ -426,6 +427,23 @@
         const data = await res.json();
         let items = normalizeItemsFromTestSearch(data);
 
+        // Listing type filter: all / bin / auction
+        const listingType = document.querySelector(
+          'input[name="listingType"]:checked'
+        )?.value || "all";
+        
+        if (listingType === "bin") {
+          items = items.filter((i) =>
+            (i.buyingOptions || []).some((opt) =>
+              opt === "FIXED_PRICE" || opt === "BEST_OFFER"
+            )
+          );
+        } else if (listingType === "auction") {
+          items = items.filter((i) =>
+            (i.buyingOptions || []).some((opt) => opt.startsWith("AUCTION"))
+          );
+        }
+        
         // If watchCount is present, apply filter
         const anyWatchCount = items.some((i) => i.watchCount != null);
         if (anyWatchCount && !Number.isNaN(minWatchers) && minWatchers > 0) {
