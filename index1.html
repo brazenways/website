@@ -587,7 +587,7 @@
     }
 
     async function callLocalLLMForScarcity(items) {
-      const LLM_URL = "http://127.0.0.1:1234/v1/chat/completions";
+      const LLM_URL = "http://192.168.1.15:1234/v1/chat/completions";
       const MODEL_NAME = "lmstudio"; // LM Studio usually routes this to the open model
 
       // Build a compact representation of items for the LLM
