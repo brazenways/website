@@ -208,16 +208,6 @@
       margin-top: 2px;
     }
 
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      border: 1px solid #4b5563;
-      color: #d1d5db;
-      margin-left: 4px;
-    }
-
     .price {
       font-weight: 600;
     }
@@ -273,8 +263,8 @@
 
       th:nth-child(1),
       td:nth-child(1),
-      th:nth-child(5),
-      td:nth-child(5) {
+      th:nth-child(6),
+      td:nth-child(6) {
         display: none;
       }
     }
@@ -305,7 +295,7 @@
           <input id="minWatchers" type="number" min="0" value="5" />
         </div>
 
-        <div class="field" style="flex: 0 0 auto; min-width: 180px;">
+        <div class="field" style="flex: 0 0 auto; min-width: 200px;">
           <label>Listing type</label>
           <div style="display:flex; gap:8px; font-size:12px; color:#d1d5db; margin-top:4px;">
             <label style="display:flex; align-items:center; gap:4px;">
@@ -322,7 +312,7 @@
             </label>
           </div>
         </div>
-        
+
         <div class="field" style="flex: 0 0 auto;">
           <button id="searchBtn">
             🔍 Scan listings
@@ -355,6 +345,7 @@
               <th>Card</th>
               <th>Listing</th>
               <th>Price</th>
+              <th>Type</th>
               <th>Watchers</th>
               <th>Link</th>
             </tr>
@@ -395,9 +386,9 @@
         url: item.itemWebUrl,
         image: item.image?.imageUrl ?? null,
         seller: item.seller?.username ?? "",
-        watchCount: item.watchCount ?? null,
+        watchCount: item.watchCount ?? null, // will remain null until watchCount is approved
         endTime: item.itemEndDate ?? null,
-        buyingOptions: item.buyingOptions || []   // <-- NEW
+        buyingOptions: item.buyingOptions || [], // key for BIN/Auction
       }));
     }
 
@@ -428,14 +419,14 @@
         let items = normalizeItemsFromTestSearch(data);
 
         // Listing type filter: all / bin / auction
-        const listingType = document.querySelector(
-          'input[name="listingType"]:checked'
-        )?.value || "all";
-        
+        const listingType =
+          document.querySelector('input[name="listingType"]:checked')?.value ||
+          "all";
+
         if (listingType === "bin") {
           items = items.filter((i) =>
-            (i.buyingOptions || []).some((opt) =>
-              opt === "FIXED_PRICE" || opt === "BEST_OFFER"
+            (i.buyingOptions || []).some(
+              (opt) => opt === "FIXED_PRICE" || opt === "BEST_OFFER"
             )
           );
         } else if (listingType === "auction") {
@@ -443,7 +434,7 @@
             (i.buyingOptions || []).some((opt) => opt.startsWith("AUCTION"))
           );
         }
-        
+
         // If watchCount is present, apply filter
         const anyWatchCount = items.some((i) => i.watchCount != null);
         if (anyWatchCount && !Number.isNaN(minWatchers) && minWatchers > 0) {
@@ -459,21 +450,17 @@
 
         if (items.length === 0) {
           elements.resultsSummary.textContent =
-            "No items found for that query (or none met the watcher filter yet).";
+            "No items found for that query (or none met the filters).";
           elements.resultsContainer.style.display = "none";
           elements.statusLine.textContent =
-            "Hint: Try a broader search like 'psa 10' or reduce the min watchers.";
+            "Hint: Try a broader search like 'psa 10' or adjust listing type / min watchers.";
           elements.statusLine.className = "status-line status-muted";
           return;
         }
 
         elements.resultsSummary.innerHTML = `
           Found <strong>${items.length}</strong> items for 
-          <strong>"${q}"</strong>${
-            anyWatchCount
-              ? ` · filtered by <strong>${minWatchers}+</strong> watchers`
-              : ` · watcher data pending eBay approval`
-          }
+          <strong>"${q}"</strong>
         `;
 
         for (const item of items) {
@@ -514,6 +501,18 @@
           }
           tr.appendChild(priceTd);
 
+          // Listing type
+          const typeTd = document.createElement("td");
+          const opts = item.buyingOptions || [];
+          let typeLabel = "—";
+          if (opts.some((o) => o === "FIXED_PRICE" || o === "BEST_OFFER")) {
+            typeLabel = "BIN";
+          } else if (opts.some((o) => o.startsWith("AUCTION"))) {
+            typeLabel = "Auction";
+          }
+          typeTd.textContent = typeLabel;
+          tr.appendChild(typeTd);
+
           // Watchers
           const watchersTd = document.createElement("td");
           if (item.watchCount != null) {
@@ -541,9 +540,8 @@
         }
 
         elements.resultsContainer.style.display = "block";
-        elements.statusLine.textContent = anyWatchCount
-          ? "Watcher counts will populate once eBay approves access to the watchCount field."
-          : "Currently showing listings without watcher data. Once watchCount access is approved, filtering and ranking will activate.";
+        elements.statusLine.textContent =
+          "Currently showing live listings. Watcher-based ranking will activate once watchCount access is approved.";
         elements.statusLine.className = "status-line status-muted";
       } catch (err) {
         console.error(err);
@@ -560,7 +558,7 @@
       performSearch();
     });
 
-    // Optional: run an initial search
+    // Initial search
     performSearch();
   </script>
 </body>
