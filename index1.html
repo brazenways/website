@@ -263,8 +263,8 @@
 
       th:nth-child(1),
       td:nth-child(1),
-      th:nth-child(6),
-      td:nth-child(6) {
+      th:nth-child(7),
+      td:nth-child(7) {
         display: none;
       }
     }
@@ -274,7 +274,7 @@
   <header>
     <div class="logo">SlabIQ</div>
     <div class="subtitle">
-      Sports card listing scanner · Powered by eBay Browse API
+      Sports card listing scanner · eBay + local AI scarcity scoring
     </div>
   </header>
 
@@ -331,8 +331,11 @@
         <div id="resultsSummary">
           Enter a search term to see live listings.
         </div>
-        <div>
+        <div style="display:flex; gap:8px; align-items:center;">
           <span class="chip">Source: eBay Production API</span>
+          <button id="aiScarcityBtn" style="font-size:11px; padding:6px 10px;">
+            🤖 AI Scarcity (local)
+          </button>
         </div>
       </div>
 
@@ -347,6 +350,7 @@
               <th>Price</th>
               <th>Type</th>
               <th>Watchers</th>
+              <th>Scarcity</th>
               <th>Link</th>
             </tr>
           </thead>
@@ -367,13 +371,18 @@
       statusLine: document.getElementById("statusLine"),
       resultsContainer: document.getElementById("resultsContainer"),
       resultsBody: document.getElementById("resultsBody"),
+      aiScarcityBtn: document.getElementById("aiScarcityBtn"),
     };
+
+    let lastItems = []; // latest items after filters (for AI)
 
     function setLoading(isLoading) {
       elements.searchBtn.disabled = isLoading;
       elements.searchBtn.textContent = isLoading ? "Scanning..." : "🔍 Scan listings";
-      elements.statusLine.textContent = isLoading ? "Contacting eBay..." : "";
-      elements.statusLine.className = "status-line status-muted";
+      if (isLoading) {
+        elements.statusLine.textContent = "Contacting eBay...";
+        elements.statusLine.className = "status-line status-muted";
+      }
     }
 
     function normalizeItemsFromTestSearch(data) {
@@ -388,8 +397,103 @@
         seller: item.seller?.username ?? "",
         watchCount: item.watchCount ?? null, // will remain null until watchCount is approved
         endTime: item.itemEndDate ?? null,
-        buyingOptions: item.buyingOptions || [], // key for BIN/Auction
+        buyingOptions: item.buyingOptions || [],
+        aiScarcityLabel: null,
+        aiScarcityReason: null,
       }));
+    }
+
+    function renderResults(items) {
+      elements.resultsBody.innerHTML = "";
+
+      for (const item of items) {
+        const tr = document.createElement("tr");
+
+        // Image
+        const imgTd = document.createElement("td");
+        if (item.image) {
+          const img = document.createElement("img");
+          img.src = item.image;
+          img.className = "thumb";
+          imgTd.appendChild(img);
+        }
+        tr.appendChild(imgTd);
+
+        // Title
+        const titleTd = document.createElement("td");
+        titleTd.className = "title-cell";
+        const main = document.createElement("div");
+        main.className = "title-main";
+        main.textContent = item.title || "(no title)";
+
+        const sub = document.createElement("div");
+        sub.className = "title-sub";
+        sub.textContent = item.seller ? `Seller: ${item.seller}` : "";
+
+        titleTd.appendChild(main);
+        titleTd.appendChild(sub);
+        tr.appendChild(titleTd);
+
+        // Price
+        const priceTd = document.createElement("td");
+        priceTd.className = "price";
+        if (item.price != null) {
+          priceTd.textContent = `${item.price} ${item.currency}`;
+        } else {
+          priceTd.textContent = "-";
+        }
+        tr.appendChild(priceTd);
+
+        // Listing type
+        const typeTd = document.createElement("td");
+        const opts = item.buyingOptions || [];
+        let typeLabel = "—";
+        if (opts.some((o) => o === "FIXED_PRICE" || o === "BEST_OFFER")) {
+          typeLabel = "BIN";
+        } else if (opts.some((o) => o.startsWith("AUCTION"))) {
+          typeLabel = "Auction";
+        }
+        typeTd.textContent = typeLabel;
+        tr.appendChild(typeTd);
+
+        // Watchers
+        const watchersTd = document.createElement("td");
+        if (item.watchCount != null) {
+          watchersTd.textContent = item.watchCount;
+        } else {
+          watchersTd.textContent = "pending";
+          watchersTd.style.color = "#6b7280";
+        }
+        tr.appendChild(watchersTd);
+
+        // AI Scarcity
+        const scarcityTd = document.createElement("td");
+        if (item.aiScarcityLabel) {
+          scarcityTd.textContent = item.aiScarcityLabel;
+          scarcityTd.title = item.aiScarcityReason || "";
+        } else {
+          scarcityTd.textContent = "—";
+          scarcityTd.style.color = "#6b7280";
+        }
+        tr.appendChild(scarcityTd);
+
+        // Link
+        const linkTd = document.createElement("td");
+        if (item.url) {
+          const a = document.createElement("a");
+          a.href = item.url;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = "View";
+          a.className = "link-btn";
+          linkTd.appendChild(a);
+        }
+        tr.appendChild(linkTd);
+
+        elements.resultsBody.appendChild(tr);
+      }
+
+      elements.resultsContainer.style.display = "block";
     }
 
     async function performSearch() {
@@ -418,7 +522,7 @@
         const data = await res.json();
         let items = normalizeItemsFromTestSearch(data);
 
-        // Listing type filter: all / bin / auction
+        // Listing type filter
         const listingType =
           document.querySelector('input[name="listingType"]:checked')?.value ||
           "all";
@@ -435,7 +539,7 @@
           );
         }
 
-        // If watchCount is present, apply filter
+        // Watchers filter (only if watchCount present and access granted)
         const anyWatchCount = items.some((i) => i.watchCount != null);
         if (anyWatchCount && !Number.isNaN(minWatchers) && minWatchers > 0) {
           items = items.filter(
@@ -443,7 +547,7 @@
           );
         }
 
-        // Sort by watchers desc if available, else leave as-is
+        // Sort by watchers desc if available
         if (anyWatchCount) {
           items.sort((a, b) => (b.watchCount ?? 0) - (a.watchCount ?? 0));
         }
@@ -453,109 +557,178 @@
             "No items found for that query (or none met the filters).";
           elements.resultsContainer.style.display = "none";
           elements.statusLine.textContent =
-            "Hint: Try a broader search like 'psa 10' or adjust listing type / min watchers.";
+            "Hint: Try a broader search or adjust listing type / min watchers.";
           elements.statusLine.className = "status-line status-muted";
+          lastItems = [];
           return;
         }
+
+        lastItems = items;
 
         elements.resultsSummary.innerHTML = `
           Found <strong>${items.length}</strong> items for 
           <strong>"${q}"</strong>
         `;
 
-        for (const item of items) {
-          const tr = document.createElement("tr");
+        renderResults(items);
 
-          // Image
-          const imgTd = document.createElement("td");
-          if (item.image) {
-            const img = document.createElement("img");
-            img.src = item.image;
-            img.className = "thumb";
-            imgTd.appendChild(img);
-          }
-          tr.appendChild(imgTd);
-
-          // Title
-          const titleTd = document.createElement("td");
-          titleTd.className = "title-cell";
-          const main = document.createElement("div");
-          main.className = "title-main";
-          main.textContent = item.title || "(no title)";
-
-          const sub = document.createElement("div");
-          sub.className = "title-sub";
-          sub.textContent = item.seller ? `Seller: ${item.seller}` : "";
-
-          titleTd.appendChild(main);
-          titleTd.appendChild(sub);
-          tr.appendChild(titleTd);
-
-          // Price
-          const priceTd = document.createElement("td");
-          priceTd.className = "price";
-          if (item.price != null) {
-            priceTd.textContent = `${item.price} ${item.currency}`;
-          } else {
-            priceTd.textContent = "-";
-          }
-          tr.appendChild(priceTd);
-
-          // Listing type
-          const typeTd = document.createElement("td");
-          const opts = item.buyingOptions || [];
-          let typeLabel = "—";
-          if (opts.some((o) => o === "FIXED_PRICE" || o === "BEST_OFFER")) {
-            typeLabel = "BIN";
-          } else if (opts.some((o) => o.startsWith("AUCTION"))) {
-            typeLabel = "Auction";
-          }
-          typeTd.textContent = typeLabel;
-          tr.appendChild(typeTd);
-
-          // Watchers
-          const watchersTd = document.createElement("td");
-          if (item.watchCount != null) {
-            watchersTd.textContent = item.watchCount;
-          } else {
-            watchersTd.textContent = "pending";
-            watchersTd.style.color = "#6b7280";
-          }
-          tr.appendChild(watchersTd);
-
-          // Link
-          const linkTd = document.createElement("td");
-          if (item.url) {
-            const a = document.createElement("a");
-            a.href = item.url;
-            a.target = "_blank";
-            a.rel = "noopener noreferrer";
-            a.textContent = "View";
-            a.className = "link-btn";
-            linkTd.appendChild(a);
-          }
-          tr.appendChild(linkTd);
-
-          elements.resultsBody.appendChild(tr);
-        }
-
-        elements.resultsContainer.style.display = "block";
         elements.statusLine.textContent =
-          "Currently showing live listings. Watcher-based ranking will activate once watchCount access is approved.";
+          "Listings loaded. You can now run local AI scarcity scoring if LM Studio is running.";
         elements.statusLine.className = "status-line status-muted";
       } catch (err) {
         console.error(err);
         elements.resultsSummary.textContent = "Error fetching listings.";
         elements.statusLine.textContent = err.message;
         elements.statusLine.className = "status-line status-error";
+        lastItems = [];
       } finally {
         setLoading(false);
+      }
+    }
+
+    async function callLocalLLMForScarcity(items) {
+      const LLM_URL = "http://127.0.0.1:1234/v1/chat/completions";
+      const MODEL_NAME = "lmstudio"; // LM Studio usually routes this to the open model
+
+      // Build a compact representation of items for the LLM
+      const payloadItems = items.map((item, idx) => ({
+        index: idx,
+        title: item.title,
+        price: item.price,
+        currency: item.currency,
+        seller: item.seller,
+        watchCount: item.watchCount,
+        buyingOptions: item.buyingOptions,
+      }));
+
+      const instructions = `
+You are scoring how scarce each sports card listing is within the current eBay market.
+
+You will receive JSON with an "items" array. Each item has:
+- index: position in the list
+- title: listing title
+- price, currency
+- seller
+- watchCount (may be null)
+- buyingOptions (BIN, AUCTION, etc.)
+
+For each item, assign a scarcity level based on how rare, limited, or hard-to-find it seems, from the perspective of a sports card collector.
+
+Use exactly ONE of these 5 labels:
+
+- "⭐️ Extremely Rare"
+- "⭐️ Very Rare"
+- "⭐️ Rare"
+- "⭐️ Uncommon"
+- "⭐️ Common"
+
+Return a JSON array in the same order as the items, where each element is:
+{
+  "index": <same index as input>,
+  "scarcityLabel": "<one of the labels above>",
+  "reason": "<short 1-2 sentence explanation>"
+}
+
+Only output valid JSON, with no extra text before or after.
+`;
+
+      const messages = [
+        {
+          role: "system",
+          content:
+            "You are an expert sports card market analyst. You assign scarcity labels to listings.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            instructions,
+            items: payloadItems,
+          }),
+        },
+      ];
+
+      const res = await fetch(LLM_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer dummy-key",
+        },
+        body: JSON.stringify({
+          model: MODEL_NAME,
+          messages,
+          temperature: 0.2,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`LLM error ${res.status}: ${text}`);
+      }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content || "[]";
+      return JSON.parse(content);
+    }
+
+    async function runAIScarcity() {
+      if (!lastItems || lastItems.length === 0) {
+        elements.statusLine.textContent =
+          "Run a search first before using AI scarcity.";
+        elements.statusLine.className = "status-line status-muted";
+        return;
+      }
+
+      try {
+        elements.aiScarcityBtn.disabled = true;
+        elements.aiScarcityBtn.textContent = "🤖 Scoring...";
+        elements.statusLine.textContent =
+          "Calling local LM Studio for scarcity scoring... (make sure LM Studio server is running)";
+        elements.statusLine.className = "status-line status-muted";
+
+        // Send full list (up to 50)
+        const scores = await callLocalLLMForScarcity(lastItems);
+
+        // Attach scores back to items
+        const byIndex = {};
+        for (const s of scores || []) {
+          if (typeof s.index === "number") {
+            byIndex[s.index] = s;
+          }
+        }
+
+        lastItems = lastItems.map((item, idx) => {
+          const s = byIndex[idx];
+          if (!s) return item;
+          return {
+            ...item,
+            aiScarcityLabel: s.scarcityLabel || null,
+            aiScarcityReason: s.reason || null,
+          };
+        });
+
+        renderResults(lastItems);
+
+        elements.statusLine.textContent =
+          "AI scarcity labels applied (hover over the scarcity cell to see the reason).";
+        elements.statusLine.className = "status-line status-muted";
+      } catch (err) {
+        console.error(err);
+        elements.statusLine.textContent = `AI error: ${err.message}`;
+        elements.statusLine.className = "status-line status-error";
+      } finally {
+        elements.aiScarcityBtn.disabled = false;
+        elements.aiScarcityBtn.textContent = "🤖 AI Scarcity (local)";
       }
     }
 
     elements.searchBtn.addEventListener("click", (e) => {
       e.preventDefault();
       performSearch();
+    });
+
+    elements.aiScarcityBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      runAIScarcity();
     });
 
     // Initial search
