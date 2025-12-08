@@ -305,6 +305,24 @@
           <input id="minWatchers" type="number" min="0" value="5" />
         </div>
 
+        <div class="field" style="flex: 0 0 auto; min-width: 180px;">
+          <label>Listing type</label>
+          <div style="display:flex; gap:8px; font-size:12px; color:#d1d5db; margin-top:4px;">
+            <label style="display:flex; align-items:center; gap:4px;">
+              <input type="radio" name="listingType" value="all" checked />
+              <span>All</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:4px;">
+              <input type="radio" name="listingType" value="bin" />
+              <span>Buy It Now</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:4px;">
+              <input type="radio" name="listingType" value="auction" />
+              <span>Auctions</span>
+            </label>
+          </div>
+        </div>
+        
         <div class="field" style="flex: 0 0 auto;">
           <button id="searchBtn">
             🔍 Scan listings
