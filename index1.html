@@ -274,7 +274,6 @@
   <header>
     <div class="logo">SlabIQ</div>
     <div class="subtitle">
-      <!--Sports card listing scanner · eBay + local AI scarcity scoring-->
       Sports card listing scanner · eBay + scarcity scoring
     </div>
   </header>
@@ -335,7 +334,6 @@
         <div style="display:flex; gap:8px; align-items:center;">
           <span class="chip">Source: eBay Production API</span>
           <button id="aiScarcityBtn" style="font-size:11px; padding:6px 10px;">
-            <!--🤖 AI Scarcity (local)-->
             🤖 Scarcity
           </button>
         </div>
@@ -588,141 +586,6 @@
       }
     }
 
-    async function callLocalLLMForScarcity(items) {
-      const LLM_URL = "http://192.168.1.15:1234/v1/chat/completions";
-      const MODEL_NAME = "lmstudio"; // LM Studio usually routes this to the open model
-
-      // Build a compact representation of items for the LLM
-      const payloadItems = items.map((item, idx) => ({
-        index: idx,
-        title: item.title,
-        price: item.price,
-        currency: item.currency,
-        seller: item.seller,
-        watchCount: item.watchCount,
-        buyingOptions: item.buyingOptions,
-      }));
-
-      const instructions = `
-You are scoring how scarce each sports card listing is within the current eBay market.
-
-You will receive JSON with an "items" array. Each item has:
-- index: position in the list
-- title: listing title
-- price, currency
-- seller
-- watchCount (may be null)
-- buyingOptions (BIN, AUCTION, etc.)
-
-For each item, assign a scarcity level based on how rare, limited, or hard-to-find it seems, from the perspective of a sports card collector.
-
-Use exactly ONE of these 5 labels:
-
-- "⭐️ Extremely Rare"
-- "⭐️ Very Rare"
-- "⭐️ Rare"
-- "⭐️ Uncommon"
-- "⭐️ Common"
-
-Return a JSON array in the same order as the items, where each element is:
-{
-  "index": <same index as input>,
-  "scarcityLabel": "<one of the labels above>",
-  "reason": "<short 1-2 sentence explanation>"
-}
-
-Only output valid JSON, with no extra text before or after.
-`;
-
-      const messages = [
-        {
-          role: "system",
-          content:
-            "You are an expert sports card market analyst. You assign scarcity labels to listings.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            instructions,
-            items: payloadItems,
-          }),
-        },
-      ];
-
-      const res = await fetch(LLM_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer dummy-key",
-        },
-        body: JSON.stringify({
-          model: MODEL_NAME,
-          messages,
-          temperature: 0.2,
-        }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`LLM error ${res.status}: ${text}`);
-      }
-
-      const data = await res.json();
-      const content = data.choices?.[0]?.message?.content || "[]";
-      return JSON.parse(content);
-    }
-
-    async function runAIScarcity() {
-      if (!lastItems || lastItems.length === 0) {
-        elements.statusLine.textContent =
-          "Run a search first before using AI scarcity.";
-        elements.statusLine.className = "status-line status-muted";
-        return;
-      }
-
-      try {
-        elements.aiScarcityBtn.disabled = true;
-        elements.aiScarcityBtn.textContent = "🤖 Scoring...";
-        elements.statusLine.textContent =
-          
-        elements.statusLine.className = "status-line status-muted";
-
-        // Send full list (up to 50)
-        const scores = await callLocalLLMForScarcity(lastItems);
-
-        // Attach scores back to items
-        const byIndex = {};
-        for (const s of scores || []) {
-          if (typeof s.index === "number") {
-            byIndex[s.index] = s;
-          }
-        }
-
-        lastItems = lastItems.map((item, idx) => {
-          const s = byIndex[idx];
-          if (!s) return item;
-          return {
-            ...item,
-            aiScarcityLabel: s.scarcityLabel || null,
-            aiScarcityReason: s.reason || null,
-          };
-        });
-
-        renderResults(lastItems);
-
-        elements.statusLine.textContent =
-          "Scarcity labels applied (hover over the scarcity cell to see the reason).";
-        elements.statusLine.className = "status-line status-muted";
-      } catch (err) {
-        console.error(err);
-        elements.statusLine.textContent = `Error: ${err.message}`;
-        elements.statusLine.className = "status-line status-error";
-      } finally {
-        elements.aiScarcityBtn.disabled = false;
-        elements.aiScarcityBtn.textContent = "🤖 AI Scarcity (local)";
-      }
-    }
-
     elements.searchBtn.addEventListener("click", (e) => {
       e.preventDefault();
       performSearch();
@@ -730,7 +593,7 @@ Only output valid JSON, with no extra text before or after.
 
     elements.aiScarcityBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      runAIScarcity();
+      
     });
 
     // Initial search
